@@ -412,7 +412,22 @@ h1, h2, .brand, .section-title {
     border-left-color: var(--red);
 }
 
+.experience-status {
+    margin-top: 1rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--teal);
+}
+
+.empty-state {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
 .experience-card:hover::after { opacity: 1; }
+
 
 .file-no {
     font-family: "IBM Plex Mono", monospace;

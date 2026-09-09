@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Portfolio of Maglio Razzy Effendy — Computer Science student at Universitas Indonesia.">
-    <title>Maglio Razzy Effendy — Portfolio</title>
+    <title>{{ name }} — Portfolio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -15,12 +15,12 @@
 
     <header class="site-header">
         <div class="container">
-            <a href="#profile" class="brand">MAGLIO<span>.RE</span></a>
+            <a href="{% url 'main:show_main' %}" class="brand">MAGLIO<span>.RE</span></a>
             <nav>
-                <a href="#profile">Profile</a>
-                <a href="#experience">Case Files</a>
-                <a href="#skills">Abilities</a>
-                <a href="#transmission">Transmission</a>
+                <a href="{% url 'main:show_main' %}">Profile</a>
+                <a href="{% url 'main:show_experience' %}">Case Files</a>
+                <a href="{% url 'main:show_main' %}#skills">Abilities</a>
+                <a href="{% url 'main:show_main' %}#transmission">Transmission</a>
             </nav>
         </div>
     </header>
@@ -34,22 +34,22 @@
             <div class="container hero-grid">
                 <div class="hero-identity">
                     <p class="hero-kicker">Computer Science &middot; Universitas Indonesia</p>
-                    <h1>Maglio<br>Razzy<br>Effendy</h1>
+                    <h1>{{ name }}</h1>
                 </div>
                 <div class="hero-photo">
                     <div class="photo-block"></div>
-                    <img class="avatar" src="/static/img/burhan.png" alt="Portrait of Maglio Razzy Effendy">
+                    <img class="avatar" src="/static/img/burhan.png" alt="Portrait of {{ name }}">
                 </div>
                 <div class="hero-details">
-                    <p class="bio">CS student at Universitas Indonesia for longer than planned, now a familiar (and slightly dreaded) face among Fasilkom students as a teaching assistant across several courses.</p>
+                    <p class="bio">{{ bio }}</p>
                     <dl class="meta-list">
                         <div class="meta-row">
                             <dt>NPM</dt>
-                            <dd>2506553616</dd>
+                            <dd>{{ npm }}</dd>
                         </div>
                         <div class="meta-row">
                             <dt>Program</dt>
-                            <dd>S1 Ilmu Komputer KKI</dd>
+                            <dd>{{ study_program }}</dd>
                         </div>
                     </dl>
                     <div class="social-links">
@@ -65,64 +65,7 @@
             <span></span><span></span><span></span><span></span><span></span><span></span>
             <span></span><span></span><span></span><span></span><span></span><span></span>
         </div>
-
-        <section class="experience" id="experience">
-            <div class="container">
-                <p class="section-eyebrow">Hawkins Lab &mdash; Restricted</p>
-                <h2 class="section-title">Case Files</h2>
-                <div class="experience-grid">
-                    <article class="experience-card">
-                        <span class="file-no">CASE 001</span>
-                        <div class="card-header">
-                            <h3>Academics Department</h3>
-                            <span>Badan Eksekutif Mahasiswa Fasilkom UI</span>
-                        </div>
-                        <p>Managing Academics resources within the BEM Fasilkom UI 2026 organization.</p>
-                    </article>
-                    <article class="experience-card">
-                        <span class="file-no">CASE 002</span>
-                        <div class="card-header">
-                            <h3>Vice Person In Charge</h3>
-                            <span>Open House Fasilkom UI 2026</span>
-                        </div>
-                        <p>Represented Liaison Officer as Vice Person In Charge in Open House Fasilkom UI 2026.</p>
-                    </article>
-                    <article class="experience-card">
-                        <span class="file-no">CASE 003</span>
-                        <div class="card-header">
-                            <h3>Staff of Liaison Officer</h3>
-                            <span>Open House Fasilkom UI &middot; 2025</span>
-                        </div>
-                        <p>Guided guest speakers and external partners as Liaison Officer staff &mdash; the role that led to leading the division the following year.</p>
-                    </article>
-                    <article class="experience-card">
-                        <span class="file-no">CASE 004</span>
-                        <div class="card-header">
-                            <h3>Event Organizer Committee</h3>
-                            <span>SOSPRO Fasilkom UI &middot; 2025</span>
-                        </div>
-                        <p>Handled on-the-ground logistics and run-of-show coordination as part of the event organizing committee.</p>
-                    </article>
-                    <article class="experience-card">
-                        <span class="file-no">CASE 005</span>
-                        <div class="card-header">
-                            <h3>Head of Artist Division</h3>
-                            <span>Coalesce 2024</span>
-                        </div>
-                        <p>Led the Artist Division: artist outreach, booking, and hospitality throughout the show.</p>
-                    </article>
-                    <article class="experience-card">
-                        <span class="file-no">CASE 006</span>
-                        <div class="card-header">
-                            <h3>Member of Security Committee</h3>
-                            <span>Alpus INC 9 &middot; 2023</span>
-                        </div>
-                        <p>Kept the venue secure and the crowd moving as part of the security committee.</p>
-                    </article>
-                </div>
-            </div>
-        </section>
-
+        
         <section class="skills" id="skills">
             <div class="container">
                 <p class="section-eyebrow">Test Subject &mdash; Observed Traits</p>

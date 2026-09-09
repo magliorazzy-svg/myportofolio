@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ name }} — Experience</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="crt" aria-hidden="true"></div>
+
+    <header class="site-header">
+        <div class="container">
+            <a href="{% url 'main:show_main' %}" class="brand">MAGLIO<span>.RE</span></a>
+            <nav>
+                <a href="{% url 'main:show_main' %}">Profile</a>
+                <a href="{% url 'main:show_experience' %}">Case Files</a>
+                <a href="{% url 'main:show_main' %}#skills">Abilities</a>
+                <a href="{% url 'main:show_main' %}#transmission">Transmission</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <section class="experience" id="experience">
+            <div class="container">
+                <p class="section-eyebrow">Hawkins Lab &mdash; Restricted</p>
+                <h2 class="section-title">Case Files</h2>
+                <div class="experience-grid">
+                    {% for experience in experience_list %}
+                        <article class="experience-card">
+                            <span class="file-no">CASE {{ forloop.counter|stringformat:"03d" }}</span>
+                            <div class="card-header">
+                                <h3>{{ experience.title }}</h3>
+                                <span>{{ experience.get_category_display }}</span>
+                            </div>
+                            <p>{{ experience.description }}</p>
+                            {% if experience.is_ongoing %}
+                                <p class="experience-status">Ongoing</p>
+                            {% else %}
+                                <p class="experience-status">Completed</p>
+                            {% endif %}
+                        </article>
+                    {% empty %}
+                        <p class="empty-state">No experience has been added yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; 2026 Maglio Razzy Effendy &middot; Fakultas Ilmu Komputer, Universitas Indonesia.</p>
+        </div>
+    </footer>
+</body>
+</html>
