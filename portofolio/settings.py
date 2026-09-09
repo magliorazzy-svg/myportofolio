@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'main',
 ]
 
 MIDDLEWARE = [
@@ -82,7 +83,9 @@ WSGI_APPLICATION = 'portofolio.wsgi.application'
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
 # Database configuration
-if PRODUCTION:
+# Use PostgreSQL only when running in production AND the DB credentials are
+# actually supplied; otherwise fall back to SQLite.
+if PRODUCTION and os.getenv('DB_NAME'):
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
