@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
-from main.models import Experience
+from main.models import Experience, Achievement
 
 
 class MainTest(TestCase):
@@ -50,3 +50,27 @@ class MainTest(TestCase):
         self.assertFalse(self.experience.is_ongoing)
         self.assertContains(response, "Completed")
         self.assertNotContains(response, "Ongoing")
+
+    def test_achievements_page(self):
+        response = self.client.get(reverse("main:show_achievements"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "achievements.html")
+        self.assertContains(response, f'href="{reverse("main:show_main")}"')
+
+    def test_empty_achievements_page(self):
+        Achievement.objects.all().delete()
+        response = self.client.get(reverse("main:show_achievements"))
+        self.assertContains(response, "No achievements have been achieved yet.")
+
+    def test_achievements_page_shows_data(self):
+        achievement = Achievement.objects.create(
+            title="Gold Medalist of Math Competition",
+            event="ONSB (Olimpiade Nasional Sains dan Bahasa)",
+            category="academic",
+            description="Won the gold medal in the mathematics category.",
+            year=2025,
+        )
+        response = self.client.get(reverse("main:show_achievements"))
+        self.assertContains(response, achievement.title)
+        self.assertContains(response, achievement.event)
+        self.assertContains(response, achievement.description)
