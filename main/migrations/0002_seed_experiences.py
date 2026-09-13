@@ -45,7 +45,6 @@ SEED = [
 
 
 def seed_experiences(apps, schema_editor):
-    # Don't seed during the test suite - the tests expect a clean table.
     if "test" in sys.argv:
         return
 
