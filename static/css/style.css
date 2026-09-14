@@ -559,3 +559,171 @@ h1, h2, .brand, .section-title {
     }
     .spores { display: none; }
 }
+
+/* ============================================================
+   Projects (Tutorial 3: forms, CRUD, JSON delivery)
+   ============================================================ */
+.projects {
+    padding: 4.5rem 0;
+}
+
+.project-search {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.project-search input[type="text"] {
+    flex: 1;
+    min-width: 200px;
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--radius);
+    padding: 0.6rem 0.9rem;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 0.9rem;
+}
+
+.project-search input[type="text"]:focus {
+    outline: none;
+    border-color: var(--red);
+}
+
+.button {
+    display: inline-block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    color: var(--ink);
+    background-color: transparent;
+    border: 1px solid var(--red-deep);
+    border-radius: var(--radius);
+    padding: 0.55rem 1.15rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    margin-bottom: 2rem;
+}
+
+.button:hover {
+    background-color: var(--red);
+    color: #fff;
+    box-shadow: var(--glow-red);
+    transform: translateY(-2px);
+}
+
+.button-danger {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--radius);
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+    margin-top: 1rem;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.button-danger:hover {
+    background-color: var(--red-deep);
+    color: #fff;
+    border-color: var(--red);
+}
+
+.project-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.project-card {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-left: 3px solid var(--red-deep);
+    border-radius: var(--radius);
+    padding: 1.6rem 1.5rem;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-left-color 0.3s ease;
+}
+
+.project-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), var(--glow-red);
+    border-left-color: var(--red);
+}
+
+.project-card h3 {
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 1.15rem;
+    margin-bottom: 0.5rem;
+    color: var(--ink);
+}
+
+.project-card p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.project-tech {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    color: var(--teal) !important;
+    text-transform: uppercase;
+}
+
+/* Form (projects_form.html) */
+.project-form {
+    max-width: 560px;
+}
+
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-group label {
+    display: block;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--teal);
+    margin-bottom: 0.4rem;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--radius);
+    padding: 0.65rem 0.9rem;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 0.9rem;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--red);
+}
+
+.form-error {
+    color: var(--red-bright);
+    font-size: 0.8rem;
+    margin-top: 0.4rem;
+}
+
+@media (max-width: 600px) {
+    .project-search {
+        flex-direction: column;
+    }
+}
