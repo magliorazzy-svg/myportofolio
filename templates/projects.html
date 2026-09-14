@@ -25,6 +25,7 @@
                                 <a href="{{ project.project_url }}" class="social-link">View Project</a>
                             {% endif %}
                             <form method="post" action="{% url 'main:delete_project' project.id %}">
+                            <a href="{% url 'main:update_project' project.id %}" class="button">Edit</a>
                                 {% csrf_token %}
                                 <button type="submit" class="button-danger">Delete</button>
                             </form>
