@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}{{ name }} &mdash; Add Project{% endblock title %}
+
+{% block content %}
+        <section class="project-form-section">
+            <div class="container">
+                <h2 class="section-title">Add Project</h2>
+                <form method="post" class="project-form">
+                    {% csrf_token %}
+                    {% for field in form %}
+                        <div class="form-group">
+                            {{ field.label_tag }}
+                            {{ field }}
+                            {% if field.errors %}
+                                <p class="form-error">{{ field.errors }}</p>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                    <button type="submit" class="button">Save Project</button>
+                </form>
+            </div>
+        </section>
+{% endblock content %}
