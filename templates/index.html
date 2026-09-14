@@ -1,32 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Portfolio of Maglio Razzy Effendy — Computer Science student at Universitas Indonesia.">
-    <title>{{ name }} — Portfolio</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css">
-</head>
-<body>
-    <div class="crt" aria-hidden="true"></div>
+{% extends "base.html" %}
 
-    <header class="site-header">
-        <div class="container">
-            <a href="{% url 'main:show_main' %}" class="brand">MAGLIO<span>.RE</span></a>
-            <nav>
-                <a href="{% url 'main:show_main' %}">Profile</a>
-                <a href="{% url 'main:show_experience' %}">Case Files</a>
-                <a href="{% url 'main:show_main' %}#skills">Abilities</a>
-                <a href="{% url 'main:show_main' %}#transmission">Transmission</a>
-                <a href="{% url 'main:show_achievements' %}">Achievements</a>
-            </nav>
-        </div>
-    </header>
-
-    <main>
+{% block content %}
         <section class="hero" id="profile">
             <div class="spores" aria-hidden="true">
                 <span></span><span></span><span></span><span></span>
@@ -94,12 +68,4 @@
                 </div>
             </div>
         </section>
-    </main>
-
-    <footer class="site-footer">
-        <div class="container">
-            <p>&copy; 2026 Maglio Razzy Effendy &middot; Fakultas Ilmu Komputer, Universitas Indonesia.</p>
-        </div>
-    </footer>
-</body>
-</html>
+{% endblock content %}
