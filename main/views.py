@@ -70,3 +70,14 @@ def delete_project(request, project_id):
         messages.success(request, "Project berhasil dihapus!")
         return redirect("main:show_projects")
     return redirect("main:show_projects")
+
+
+def update_project(request, project_id):
+    project = get_object_or_404(Project, pk=project_id)
+    form = ProjectForm(request.POST or None, instance=project)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Proyek berhasil diperbarui!")
+        return redirect("main:show_projects")
+    context = {"name": "Maglio Razzy Effendy", "form": form}
+    return render(request, "projects_form.html", context)
