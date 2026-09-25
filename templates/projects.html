@@ -12,8 +12,9 @@
                     <input type="text" name="title" value="{{ title_query }}" placeholder="Search by title...">
                     <button type="submit" class="button">Search</button>
                 </form>
-
+                {% if user.is_superuser %}
                 <a href="{% url 'main:create_project' %}" class="button">Add Project</a>
+                {% endif %}
 
                 <div class="project-grid">
                     {% for project in project_list %}
@@ -24,11 +25,18 @@
                             {% if project.project_url %}
                                 <a href="{{ project.project_url }}" class="social-link">View Project</a>
                             {% endif %}
-                            <form method="post" action="{% url 'main:delete_project' project.id %}">
-                            <a href="{% url 'main:update_project' project.id %}" class="button">Edit</a>
-                                {% csrf_token %}
-                                <button type="submit" class="button-danger">Delete</button>
-                            </form>
+                            {% if user.is_authenticated %}
+                                {% include "components/project_star.html" with project=project %}
+                            {% endif %}
+
+                            {% if user.is_superuser %}
+                                <a href="{% url 'main:update_project' project.id %}" class="button">Edit</a>
+                                <form method="post" action="{% url 'main:delete_project' project.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="button-danger">Delete</button>
+                                </form>
+                                {% include "components/project_delete_modal.html" with project=project %}
+                            {% endif %}
                         </article>
                     {% empty %}
                         <p class="empty-state">No projects have been added yet.</p>
