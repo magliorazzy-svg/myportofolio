@@ -4,6 +4,8 @@ from django.core import serializers
 from django.http import HttpResponse
 from main.forms import ProjectForm
 from main.models import Experience, Achievement, Project
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth import login, logout
 
 
 def show_main(request):
@@ -81,3 +83,35 @@ def update_project(request, project_id):
         return redirect("main:show_projects")
     context = {"name": "Maglio Razzy Effendy", "form": form}
     return render(request, "projects_form.html", context)
+
+#-------TUTORIAL 4-------
+def register(request):
+    form = UserCreationForm(request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Account created successfully. Please log in.")
+        return redirect("main:login")
+
+    context = {
+        "name": "Burhan",
+        "form": form,
+    }
+    return render(request, "register.html", context)
+
+def login_user(request):
+    form = AuthenticationForm(request, data=request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        login(request, form.get_user())
+        return redirect("main:show_main")
+
+    context = {
+        "name": "Burhan",
+        "form": form,
+    }
+    return render(request, "login.html", context)
+
+def logout_user(request):
+    logout(request)
+    return redirect("main:show_main")
