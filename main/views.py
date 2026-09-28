@@ -4,9 +4,15 @@ from django.core import serializers
 from django.http import HttpResponse
 from main.forms import ProjectForm
 from main.models import Experience, Achievement, Project
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth import login, logout
+from django.contrib.auth.decorators import login_required 
+from django.core.exceptions import PermissionDenied       
+import datetime
 
 
 def show_main(request):
+    last_login = request.COOKIES.get('last_login', 'No active login session / Cookie not found')
     context = {
         "name": "Maglio Razzy Effendy",
         "npm": "2506553616",
@@ -15,6 +21,7 @@ def show_main(request):
             "A Computer Science student at Universitas Indonesia interested "
             "in software development and education."
         ),
+        "last_login": last_login,
     }
     return render(request, "index.html", context)
 
@@ -34,8 +41,10 @@ def show_achievements(request):
     }
     return render(request, "achievements.html", context)
 
-
+@login_required(login_url="/login")
 def create_project(request):
+    if not request.user.is_superuser:
+        raise PermissionDenied
     form = ProjectForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         form.save()
@@ -50,7 +59,7 @@ def get_projects_json(request):
     projects = Project.objects.all()
     if title_query:
         projects = projects.filter(title__icontains=title_query)
-    projects_json = serializers.serialize("json", projects)
+    projects_json = serializers.serialize("json", projects, use_natural_foreign_keys=True)
     return HttpResponse(projects_json, content_type="application/json")
 
 
@@ -62,8 +71,10 @@ def show_projects(request):
     context = {"name": "Maglio Razzy Effendy", "project_list": projects, "title_query": title_query}
     return render(request, "projects.html", context)
 
-
+@login_required(login_url="/login")   
 def delete_project(request, project_id):
+    if not request.user.is_superuser:
+        raise PermissionDenied
     project = get_object_or_404(Project, pk=project_id)
     if request.method == "POST":
         project.delete()
@@ -71,8 +82,10 @@ def delete_project(request, project_id):
         return redirect("main:show_projects")
     return redirect("main:show_projects")
 
-
+@login_required(login_url="/login") 
 def update_project(request, project_id):
+    if not request.user.is_superuser:
+        raise PermissionDenied
     project = get_object_or_404(Project, pk=project_id)
     form = ProjectForm(request.POST or None, instance=project)
     if request.method == "POST" and form.is_valid():
@@ -81,3 +94,55 @@ def update_project(request, project_id):
         return redirect("main:show_projects")
     context = {"name": "Maglio Razzy Effendy", "form": form}
     return render(request, "projects_form.html", context)
+
+#-------TUTORIAL 4-------
+def register(request):
+    form = UserCreationForm(request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Account created successfully. Please log in.")
+        return redirect("main:login")
+
+    context = {
+        "name": "Burhan",
+        "form": form,
+    }
+    return render(request, "register.html", context)
+
+def login_user(request):
+    form = AuthenticationForm(request, data=request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        user = form.get_user()
+        login(request, user)
+        response = redirect("main:show_main")
+        response.set_cookie('last_login', datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        return response
+
+    context = {
+        "name": "Burhan",
+        "form": form,
+    }
+    return render(request, "login.html", context)
+
+def logout_user(request):
+    logout(request)
+    response = redirect("main:show_main")
+    response.delete_cookie('last_login')
+    return response
+
+# No is_superuser check: any logged-in account may give a star
+@login_required(login_url="/login/")
+def toggle_star(request, project_id):
+    project = get_object_or_404(Project, pk=project_id)
+
+    if request.method == "POST":
+        # If this account has already starred it, remove the star.
+        # If not, add one.
+        if request.user in project.starred_by.all():
+            project.starred_by.remove(request.user)
+        else:
+            project.starred_by.add(request.user)
+
+    return redirect("main:show_projects")
