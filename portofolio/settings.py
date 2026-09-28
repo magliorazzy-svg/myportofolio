@@ -31,6 +31,7 @@ SECRET_KEY = 'django-insecure-z94wf7gt%0wnq+w@fkyq$s=cp+d!uwjfk)$y8^aadnl$uw20ww
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
+CSRF_TRUSTED_ORIGINS = ['https://maglio-razzy-myportofolio.pws.cs.ui.ac.id']
 PRODUCTION = os.getenv('PRODUCTION', 'False').lower() == 'true'
 
 
