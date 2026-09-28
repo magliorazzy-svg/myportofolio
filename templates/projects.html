@@ -29,8 +29,10 @@
                                 {% include "components/project_star.html" with project=project %}
                             {% endif %}
 
-                            {% if user.is_superuser %}
+                            {% if user.is_superuser or is_editor %}
                                 <a href="{% url 'main:update_project' project.id %}" class="button">Edit</a>
+                            {% endif %}
+                            {% if user.is_superuser %}
                                 <form method="post" action="{% url 'main:delete_project' project.id %}">
                                     {% csrf_token %}
                                     <button type="submit" class="button-danger">Delete</button>
