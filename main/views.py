@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core import serializers
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse 
 from main.forms import ProjectForm
 from main.models import Experience, Achievement, Project
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
@@ -56,25 +56,42 @@ def create_project(request):
 
 def get_projects_json(request):
     title_query = request.GET.get("title", "").strip()
-    projects = Project.objects.all()
+    projects = Project.objects.prefetch_related('starred_by').all()
+
     if title_query:
         projects = projects.filter(title__icontains=title_query)
-    projects_json = serializers.serialize("json", projects, use_natural_foreign_keys=True)
-    return HttpResponse(projects_json, content_type="application/json")
+
+    # Manually build the JSON data so we can add the Star logic
+    data = []
+    for project in projects:
+        starred_users = project.starred_by.all()
+        is_starred = request.user in starred_users if request.user.is_authenticated else False
+        starred_by_names = ", ".join([u.username for u in starred_users])
+
+        data.append({
+            "pk": str(project.id),
+            "fields": {
+                "title": project.title,
+                "description": project.description,
+                "tech_stack": project.tech_stack,
+                "project_url": project.project_url,
+                "project_image_url": project.project_image_url,
+                "star_count": starred_users.count(),
+                "is_starred": is_starred,
+                "starred_by_names": starred_by_names,
+            }
+        })
+
+    return JsonResponse(data, safe=False)
 
 
 def show_projects(request):
-    json_response = get_projects_json(request)
-    projects = serializers.deserialize("json", json_response.content.decode("utf-8"))
-    projects = [project.object for project in projects]
     title_query = request.GET.get("title", "").strip()
-    is_editor = request.user.groups.filter(name="Editor").exists() if request.user.is_authenticated else False
+
     context = {
-        "name": "Maglio Razzy Effendy",
-        "project_list": projects,
+        "name": "Burhan",
         "title_query": title_query,
-        "is_editor" : is_editor,
-        }
+    }
     return render(request, "projects.html", context)
 
 

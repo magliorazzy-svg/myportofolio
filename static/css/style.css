@@ -736,11 +736,12 @@ h1, h2, .brand, .section-title {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    background: var(--ink);
 }
 
 .button-star.is-starred {
-    background: var(--accent);
+    background: var(--red);
+    color: #fff;
+    border-color: var(--red);
 }
 
 .star-count {
@@ -799,3 +800,7 @@ h1, h2, .brand, .section-title {
 .toast-success { border-left: 4px solid #22c55e; }
 .toast-error { border-left: 4px solid var(--red); }
 .toast-normal { border-left: 4px solid var(--teal); }
+
+.hide {
+    display: none !important;
+}
