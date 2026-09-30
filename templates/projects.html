@@ -21,7 +21,10 @@
                     <button type="submit" class="button">Search</button>
                 </form>
                 {% if user.is_superuser %}
-                <a href="{% url 'main:create_project' %}" class="button">Add Project</a>
+                <button type="button" class="button" popovertarget="add-project-modal">
+                    <span aria-hidden="true">+</span>
+                    Add Project
+                </button>
                 {% endif %}
 
                 <!-- Loading State -->
@@ -43,6 +46,10 @@
                 <div id="grid" class="project-grid hide"></div>
             </div>
         </section>
+
+        {% if user.is_superuser %}
+            {% include "components/project_form_modal.html" %}
+        {% endif %}
 
     <script>
     // Configuration
