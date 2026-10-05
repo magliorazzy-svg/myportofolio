@@ -36,9 +36,11 @@ def show_experience(request):
 
 
 def show_achievements(request):
+    # The page is only a skeleton: JavaScript fetches the data from get_achievements_json.
+    # The (empty) form is rendered inside the add-achievement modal for the owner.
     context = {
         "name": "Maglio Razzy Effendy",
-        "achievement_list": Achievement.objects.all(),
+        "form": AchievementForm(),
     }
     return render(request, "achievements.html", context)
 

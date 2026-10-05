@@ -1,5 +1,6 @@
 from django.urls import path
 from main.views import (
+    create_achievement_ajax,
     show_main,
     show_experience,
     show_achievements,
@@ -33,6 +34,7 @@ urlpatterns = [
     path("logout/", logout_user, name="logout"),
     path("projects/<uuid:project_id>/star/",toggle_star,name="toggle_star",),
     path("projects/add-ajax/", create_project_ajax, name="create_project_ajax"),
-    path("api/projects/", get_achievements_json, name="get_achievements_json"),
-    path("projects/<uuid:achievement_id>/star/",toggle_achievement_star,name="toggle_achievement_star",),
+    path("api/achievements/", get_achievements_json, name="get_achievements_json"),
+    path("achievements/<uuid:achievement_id>/star/", toggle_achievement_star, name="toggle_achievement_star"),
+    path("achievements/add-ajax/", create_achievement_ajax, name="create_achievement_ajax"),
 ]
