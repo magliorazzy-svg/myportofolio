@@ -11,7 +11,7 @@ Template pattern. Every page extends a shared `templates/base.html`, which holds
 head, navigation, and footer, so each page template only has to define its own
 `{% block content %}`. The Profile page carries the hero, Abilities, and Transmission
 (contact) sections, while Case Files (my organisational and committee experience),
-Achievements (my academic and non-academic awards), and Projects are each a separate
+Achievements (my academic and non-academic awards, loaded with AJAX), and Projects are each a separate
 page backed by their own Django model, view, and template. Projects is the one
 section with full CRUD: new projects are added through a `ModelForm`, existing ones
 can be edited or deleted from the Projects page, and the list itself is populated by
@@ -186,6 +186,49 @@ it only carries text, so the object has to be converted into a portable, languag
 independent format on the way out, and converted back into something Python can work
 with on the way back in.
 
+### Assignment 5
+
+1. Debouncing is a technique that delays running a function until a short period has
+   passed without the triggering event happening again. In the Achievements page the
+   search input listens to the `input` event, which fires on every keystroke. Instead of
+   calling `fetchAchievements` immediately, the handler calls `clearTimeout` on the
+   previous timer and starts a new `setTimeout` of 300 ms, so the request is only sent
+   once the user has stopped typing. This matters for an AJAX search because every
+   request goes to the server and hits the database: without debouncing, typing
+   "Gold" would send four requests in a row, most of which are already outdated by the
+   time they return. Debouncing cuts the number of requests, reduces server load, and
+   avoids flickering results. I also use an `AbortController` so that if an older request
+   is still in flight when a newer one starts, the older one is cancelled and cannot
+   overwrite the newer results.
+
+2. `fetch()` is asynchronous: it returns a Promise immediately, and the actual HTTP
+   response arrives later. The `await` keyword pauses the `async` function until that
+   Promise settles, and then gives me the real value, so `const response = await
+   fetch(url)` gives a `Response` object and `await response.json()` gives the parsed
+   data, while the rest of the page keeps working because only that function is
+   suspended. Without `await`, `response` would just be a pending Promise, so reading
+   `response.ok` or calling `response.json()` on it would not work as intended: the code
+   after the call would run before any data exists, `response.json()` would itself return
+   another Promise instead of the list of achievements, and `forEach` over it would fail.
+   Errors would also escape the `try/catch`, because a rejected Promise that is not
+   awaited is not caught there.
+
+3. Cross-Site Scripting (XSS) is an attack where an attacker gets their own JavaScript to
+   run in other users' browsers, usually by saving malicious text such as
+   `<img src="x" onerror="alert('XSS!')">` as a normal field value. When that value is
+   later displayed as HTML, the browser treats it as real markup and executes the
+   script, which can then read cookies, send requests as the victim, or change the page.
+   Data displayed through a Django template is safer by default because the template
+   engine auto-escapes `{{ variable }}`, turning `<` and `>` into `&lt;` and `&gt;` so
+   they show up as plain text. Data displayed through AJAX loses that protection: the
+   JSON is fetched as raw text and I build the cards in JavaScript, inserting values into
+   template literals that are assigned to `innerHTML`. Django is no longer in the loop, so
+   nothing escapes the text and the browser parses it as HTML. To fix this I wrap every
+   value coming from the JSON with an `escapeHtml` function before it is placed into
+   `innerHTML`, and on the server `AchievementForm` removes HTML tags with `strip_tags` in
+   its `clean_title`, `clean_event`, and `clean_description` methods. Escaping at display
+   time is the main defense and the server side cleaning is a second layer.
+
 ## AI Usage Disclosure
 
 I used two tools while working on this assignment: Gemini and Claude Code.
@@ -235,3 +278,26 @@ and `ProjectForm` with `instance=project` rather than building a separate form a
 template for editing. I tested the full create, edit, delete, and search flow myself
 in the browser, and re-ran `python manage.py test main` and `python manage.py check`
 to confirm nothing regressed before committing.
+
+For Tutorial 05 and Assignment 5, I used Claude Code mostly as a tutor. For Assignment
+5 I applied the Tutorial 05 patterns (AJAX list, debounced search, modal form submitted
+with fetch, toasts, XSS protection) to the Achievements section instead of Projects.
+Claude Code explained the concepts and gave me the plan and the step order, and I wrote
+the `starred_by` field and migration, `AchievementForm`, the three views
+(`get_achievements_json`, `toggle_achievement_star`, `create_achievement_ajax`), the URLs,
+and the modal component myself, which Claude Code reviewed and tested after each step.
+Bugs it found in my work that I fixed: `starred_by` being returned instead of its
+`.count()` in the JSON (a `TypeError`), `clean_tech_stack` copied from the Project form so
+the `event` field was never sanitised, a wrong URL name in the modal that caused a
+`NoReverseMatch`, a `fields` typo and a missing comma in the form, and Find and Replace
+changes that pointed the achievements page at a non-existent `delete_achievement` URL
+and at the Project star endpoint. Because of the deadline, I asked Claude Code to write
+the final version of `templates/achievements.html` (cleaning up the Find and Replace
+result), update `show_achievements`, and draft the answers above; I reviewed them
+against the code. Claude Code also tested all four roles (visitor, regular user, editor,
+superuser), the 400/403/201 responses, the star state, and an XSS payload both through
+the form (rejected by the server) and inserted directly into the database (displayed as
+plain text by `escapeHtml`). Limitations I noticed: the tutorial CSS used variables
+(`--paper`, `--line`, `--accent`) that do not exist in my Stranger Things theme, so I
+had to map them to my own variables, and a few of Claude Code's own test scripts gave
+false alarms that I only trusted after checking the real output.

@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core import serializers
 from django.http import HttpResponse, JsonResponse 
-from main.forms import ProjectForm
+from main.forms import ProjectForm, AchievementForm
 from main.models import Experience, Achievement, Project
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth import login, logout
@@ -36,11 +36,63 @@ def show_experience(request):
 
 
 def show_achievements(request):
+    # The page is only a skeleton: JavaScript fetches the data from get_achievements_json.
+    # The (empty) form is rendered inside the add-achievement modal for the owner.
     context = {
         "name": "Maglio Razzy Effendy",
-        "achievement_list": Achievement.objects.all(),
+        "form": AchievementForm(),
     }
     return render(request, "achievements.html", context)
+
+def get_achievements_json(request):
+    title_query = request.GET.get("title", "").strip()
+    achievements = Achievement.objects.prefetch_related("starred_by").order_by("-year")
+
+    if title_query:
+        achievements = achievements.filter(title__icontains=title_query)
+
+    data = []
+    for achievement in achievements:
+        starred_users = achievement.starred_by.all()
+        is_starred = request.user in starred_users if request.user.is_authenticated else False
+        data.append({
+            "pk": str(achievement.id),
+            "fields": {
+                "title": achievement.title,
+                "event": achievement.event,
+                "category": achievement.get_category_display(),
+                "description": achievement.description,
+                "year": achievement.year,
+                "star_count": starred_users.count(),
+                "is_starred": is_starred,
+                "starred_by_names": ", ".join(u.username for u in starred_users),
+            },
+        })
+    return JsonResponse(data, safe=False)
+
+@login_required(login_url="/login/")
+def toggle_achievement_star(request, achievement_id):
+    achievement = get_object_or_404(Achievement, pk=achievement_id)
+
+    if request.method == "POST":
+        if request.user in achievement.starred_by.all():
+            achievement.starred_by.remove(request.user)
+        else:
+            achievement.starred_by.add(request.user)
+
+    return redirect("main:show_achievements")
+
+@require_POST
+def create_achievement_ajax(request):
+    if not request.user.is_superuser:
+        return JsonResponse({"message": "Only the portfolio owner can add achievements."}, status=403)
+
+    form = AchievementForm(request.POST)
+    if form.is_valid():
+        achievement = form.save()
+        return JsonResponse({"message": "Achievement added successfully.", "pk": str(achievement.id)}, status=201)
+
+    return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
 
 @login_required(login_url="/login")
 def create_project(request):
@@ -193,3 +245,4 @@ def create_project_ajax(request):
         )
 
     return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
+

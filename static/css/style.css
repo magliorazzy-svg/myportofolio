@@ -574,7 +574,8 @@ h1, h2, .brand, .section-title {
     flex-wrap: wrap;
 }
 
-.project-search input[type="text"] {
+.project-search input[type="text"],
+.project-search input[type="search"] {
     flex: 1;
     min-width: 200px;
     background: var(--panel);
@@ -586,7 +587,8 @@ h1, h2, .brand, .section-title {
     font-size: 0.9rem;
 }
 
-.project-search input[type="text"]:focus {
+.project-search input[type="text"]:focus,
+.project-search input[type="search"]:focus {
     outline: none;
     border-color: var(--red);
 }

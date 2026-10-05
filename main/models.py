@@ -42,6 +42,9 @@ class Achievement(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     event = models.CharField(max_length=255)
+    starred_by = models.ManyToManyField(
+        User, related_name="starred_achievements", blank=True
+    )
     category = models.CharField(
         max_length=20,
         choices=CATEGORY_CHOICES,
