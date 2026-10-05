@@ -42,7 +42,7 @@ class AchievementForm(ModelForm):
     def clean_title(self):
         title = strip_tags(self.cleaned_data["title"]).strip()
         if not title:
-            raise ValidationError("Project name can't contain only HTML tags.")
+            raise ValidationError("Title can't contain only HTML tags.")
         return title
 
     def clean_event(self):
