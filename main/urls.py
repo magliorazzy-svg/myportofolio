@@ -12,7 +12,9 @@ from main.views import (
     login_user,
     logout_user,
     toggle_star,
-    create_project_ajax
+    create_project_ajax,
+    toggle_achievement_star,
+    get_achievements_json
 )
 
 app_name = "main"
@@ -31,5 +33,6 @@ urlpatterns = [
     path("logout/", logout_user, name="logout"),
     path("projects/<uuid:project_id>/star/",toggle_star,name="toggle_star",),
     path("projects/add-ajax/", create_project_ajax, name="create_project_ajax"),
-
+    path("api/projects/", get_achievements_json, name="get_achievements_json"),
+    path("projects/<uuid:achievement_id>/star/",toggle_achievement_star,name="toggle_achievement_star",),
 ]
