@@ -7,21 +7,249 @@
             <div class="container">
                 <p class="section-eyebrow">Upside Down &mdash; Trophy Room</p>
                 <h2 class="section-title">Achievements</h2>
-                <div class="experience-grid">
-                    {% for achievement in achievement_list %}
-                        <article class="achievement-card">
-                            <span class="file-no">ACHIEVEMENT {{ forloop.counter|stringformat:"03d" }}</span>
-                            <div class="card-header">
-                                <h3>{{ achievement.title }}</h3>
-                                <span>{{ achievement.event }} &middot; {{ achievement.get_category_display }}</span>
-                            </div>
-                            <p>{{ achievement.description }}</p>
-                            <p class="achievement-year">{{ achievement.year }}</p>
-                        </article>
-                    {% empty %}
-                        <p class="empty-state">No achievements have been achieved yet.</p>
-                    {% endfor %}
+
+                <form id="achievement-search-form" class="project-search">
+                    <input type="search"
+                           id="search-input"
+                           name="title"
+                           placeholder="Search by title..."
+                           aria-label="Search achievements by title">
+                    <button type="submit" class="button">Search</button>
+                </form>
+
+                {% if user.is_superuser %}
+                <button type="button" class="button" popovertarget="add-achievement-modal">
+                    <span aria-hidden="true">+</span>
+                    Add Achievement
+                </button>
+                {% endif %}
+
+                <!-- Loading State -->
+                <div id="loading" class="empty-state hide">
+                    <p>Loading achievements...</p>
                 </div>
+
+                <!-- Error State -->
+                <div id="error" class="empty-state hide">
+                    <p>Failed to load achievement data. Please try again.</p>
+                </div>
+
+                <!-- Empty State -->
+                <div id="empty" class="empty-state hide">
+                    <p>No achievements have been added or found yet.</p>
+                </div>
+
+                <!-- Achievement Grid (filled in by JavaScript) -->
+                <div id="grid" class="project-grid hide"></div>
             </div>
         </section>
+
+        {% if user.is_superuser %}
+            {% include "components/achievement_form_modal.html" %}
+        {% endif %}
+
+    <script>
+    // Configuration
+    const BASE_ACHIEVEMENTS_ENDPOINT = "{% url 'main:get_achievements_json' %}";
+    const CREATE_ACHIEVEMENT_ENDPOINT = "{% url 'main:create_achievement_ajax' %}";
+    const IS_AUTHENTICATED = "{{ user.is_authenticated|yesno:'true,false' }}" === "true";
+    let achievementsAbortController;
+
+    // DOM elements
+    const loadingState = document.getElementById('loading');
+    const errorState = document.getElementById('error');
+    const emptyState = document.getElementById('empty');
+    const gridContainer = document.getElementById('grid');
+    const searchForm = document.getElementById('achievement-search-form');
+    const searchInput = document.getElementById('search-input');
+    // Only exists for superusers (the modal is not rendered for anyone else)
+    const achievementForm = document.getElementById('achievement-form');
+    const SEARCH_DEBOUNCE_DELAY = 300;
+    let searchDebounceTimer;
+
+    // Show/hide page sections
+    function displayPageSection({ showLoading = false, showError = false, showEmpty = false, showGrid = false }) {
+        loadingState.classList.toggle('hide', !showLoading);
+        errorState.classList.toggle('hide', !showError);
+        emptyState.classList.toggle('hide', !showEmpty);
+        gridContainer.classList.toggle('hide', !showGrid);
+    }
+
+    // Convert special HTML characters into entities so they display as text (XSS protection)
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+    }
+
+    function closeAchievementModal() {
+        document.getElementById("add-achievement-modal").hidePopover();
+    }
+
+    // Build an achievement card element from one JSON item
+    function buildAchievementCardElement(item) {
+        const achievement = item.fields;
+        const achievementId = item.pk;
+
+        const articleElement = document.createElement('article');
+        articleElement.className = 'experience-card';
+
+        // A dummy UUID used as a placeholder to be replaced with the real ID from the JSON data
+        const starUrl = "{% url 'main:toggle_achievement_star' '00000000-0000-0000-0000-000000000000' %}"
+            .replace('00000000-0000-0000-0000-000000000000', achievementId);
+
+        const isStarredClass = achievement.is_starred ? " is-starred" : "";
+        const starText = achievement.is_starred ? "Unstar" : "Star";
+        const starTitle = achievement.star_count > 0
+            ? `Starred by ${escapeHtml(achievement.starred_by_names)}`
+            : "Be the first to star";
+
+        // Logged-in users get a working star button; visitors only see the count.
+        const starHtml = IS_AUTHENTICATED
+            ? `<form method="post" action="${starUrl}" class="star-form">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="button button-star${isStarredClass}"
+                            title="${starTitle}">
+                        <span aria-hidden="true">★</span>
+                        ${starText}
+                        <span class="star-count">${escapeHtml(achievement.star_count)}</span>
+                    </button>
+                </form>`
+            : `<span class="star-count" title="${starTitle}">★ ${escapeHtml(achievement.star_count)}</span>`;
+
+        // Every value coming from the JSON is escaped before it goes into innerHTML
+        const completeCardHtml = `
+            <h3>${escapeHtml(achievement.title)}</h3>
+            <span class="experience-category">${escapeHtml(achievement.event)} &middot; ${escapeHtml(achievement.category)}</span>
+            <p class="experience-description">${escapeHtml(achievement.description)}</p>
+            <p class="achievement-year">${escapeHtml(achievement.year)}</p>
+            <div class="project-card-actions">
+                <div class="project-actions">
+                    ${starHtml}
+                </div>
+            </div>
+        `;
+
+        articleElement.innerHTML = completeCardHtml;
+        return articleElement;
+    }
+
+    // Fetch achievement data from the JSON endpoint
+    async function fetchAchievements(searchQuery = "") {
+        // Cancel the previous request so stale results never overwrite newer ones
+        if (achievementsAbortController) achievementsAbortController.abort();
+        achievementsAbortController = new AbortController();
+
+        try {
+            displayPageSection({ showLoading: true });
+
+            const url = searchQuery
+                ? `${BASE_ACHIEVEMENTS_ENDPOINT}?title=${encodeURIComponent(searchQuery)}`
+                : BASE_ACHIEVEMENTS_ENDPOINT;
+
+            const response = await fetch(url, {
+                headers: { 'Accept': 'application/json' },
+                signal: achievementsAbortController.signal,
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch data');
+
+            const achievementData = await response.json();
+
+            if (achievementData.length === 0) {
+                displayPageSection({ showEmpty: true });
+            } else {
+                gridContainer.innerHTML = '';
+                achievementData.forEach(item => {
+                    gridContainer.appendChild(buildAchievementCardElement(item));
+                });
+                displayPageSection({ showGrid: true });
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+            console.error('Error loading achievements:', error);
+            displayPageSection({ showError: true });
+        }
+    }
+
+    // Read a cookie value, used to get the CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Send the modal form to the server with fetch (no page reload)
+    async function addAchievement(event) {
+        event.preventDefault();
+
+        const submitButton = achievementForm.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+
+        try {
+            const response = await fetch(CREATE_ACHIEVEMENT_ENDPOINT, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                body: new FormData(achievementForm),
+            });
+            const result = await response.json().catch(() => ({}));
+
+            if (response.ok) {
+                achievementForm.reset();
+                closeAchievementModal();
+                showToast('Success', 'New achievement added successfully!', 'success');
+                fetchAchievements(searchInput.value.trim());
+            } else {
+                const errorMessages = result.errors
+                    ? Object.values(result.errors).flat().map(error => error.message)
+                    : [result.message || `Something went wrong (status ${response.status}).`];
+                showToast('Failed to add achievement', errorMessages.join(' '), 'error');
+            }
+        } catch (error) {
+            console.error('Error adding achievement:', error);
+            showToast('Failed to add achievement', 'Could not reach the server. Please try again.', 'error');
+        } finally {
+            submitButton.disabled = false;
+        }
+    }
+
+    if (achievementForm) {
+        achievementForm.addEventListener('submit', addAchievement);
+    }
+
+    // Search with debouncing: only fire after the user stops typing
+    function searchAchievements() {
+        fetchAchievements(searchInput.value.trim());
+    }
+
+    searchInput.addEventListener("input", function() {
+        clearTimeout(searchDebounceTimer);
+
+        searchDebounceTimer = setTimeout(function() {
+            searchAchievements();
+        }, SEARCH_DEBOUNCE_DELAY);
+    });
+
+    searchForm.addEventListener("submit", function(event) {
+        event.preventDefault();
+        clearTimeout(searchDebounceTimer);
+        searchAchievements();
+    });
+
+    // Start the application
+    fetchAchievements(searchInput.value.trim());
+    </script>
 {% endblock content %}
