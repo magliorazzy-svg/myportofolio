@@ -59,8 +59,11 @@ class MainTest(TestCase):
 
     def test_empty_achievements_page(self):
         Achievement.objects.all().delete()
+        # The page is a skeleton since Assignment 5: the empty state text is
+        # always in the HTML and the data comes from the JSON endpoint.
         response = self.client.get(reverse("main:show_achievements"))
-        self.assertContains(response, "No achievements have been achieved yet.")
+        self.assertContains(response, "No achievements have been added or found yet.")
+        self.assertEqual(self.client.get(reverse("api:achievement-list")).json(), [])
 
     def test_achievements_page_shows_data(self):
         achievement = Achievement.objects.create(
@@ -70,7 +73,10 @@ class MainTest(TestCase):
             description="Won the gold medal in the mathematics category.",
             year=2025,
         )
-        response = self.client.get(reverse("main:show_achievements"))
-        self.assertContains(response, achievement.title)
-        self.assertContains(response, achievement.event)
+        # Data is no longer rendered into the HTML; the page loads it through the API.
+        response = self.client.get(reverse("api:achievement-list"))
+        self.assertEqual(response.status_code, 200)
+        titles = [item["title"] for item in response.json()]
+        self.assertIn(achievement.title, titles)
+        self.assertIn(achievement.event, [item["event"] for item in response.json()])
         self.assertContains(response, achievement.description)
