@@ -3,7 +3,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.core import serializers
 from django.http import HttpResponse, JsonResponse 
 from main.forms import ProjectForm, AchievementForm
-from main.models import Experience, Achievement, Project
+from main.models import Experience, Project
+from main.permissions import is_editor
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required 
@@ -36,63 +37,21 @@ def show_experience(request):
 
 
 def show_achievements(request):
-    # The page is only a skeleton: JavaScript fetches the data from get_achievements_json.
-    # The (empty) form is rendered inside the add-achievement modal for the owner.
+    """Render the page skeleton; the data itself comes from /api/v1/achievements/.
+
+    The role flags decide which controls the template renders. They are only a
+    UI convenience: the API permission class is what actually enforces access.
+    """
+    is_owner = request.user.is_superuser
     context = {
         "name": "Maglio Razzy Effendy",
         "form": AchievementForm(),
+        "edit_form": AchievementForm(auto_id="edit_%s"),
+        "is_owner": is_owner,
+        "can_edit": is_owner or is_editor(request.user),
     }
     return render(request, "achievements.html", context)
 
-def get_achievements_json(request):
-    title_query = request.GET.get("title", "").strip()
-    achievements = Achievement.objects.prefetch_related("starred_by").order_by("-year")
-
-    if title_query:
-        achievements = achievements.filter(title__icontains=title_query)
-
-    data = []
-    for achievement in achievements:
-        starred_users = achievement.starred_by.all()
-        is_starred = request.user in starred_users if request.user.is_authenticated else False
-        data.append({
-            "pk": str(achievement.id),
-            "fields": {
-                "title": achievement.title,
-                "event": achievement.event,
-                "category": achievement.get_category_display(),
-                "description": achievement.description,
-                "year": achievement.year,
-                "star_count": starred_users.count(),
-                "is_starred": is_starred,
-                "starred_by_names": ", ".join(u.username for u in starred_users),
-            },
-        })
-    return JsonResponse(data, safe=False)
-
-@login_required(login_url="/login/")
-def toggle_achievement_star(request, achievement_id):
-    achievement = get_object_or_404(Achievement, pk=achievement_id)
-
-    if request.method == "POST":
-        if request.user in achievement.starred_by.all():
-            achievement.starred_by.remove(request.user)
-        else:
-            achievement.starred_by.add(request.user)
-
-    return redirect("main:show_achievements")
-
-@require_POST
-def create_achievement_ajax(request):
-    if not request.user.is_superuser:
-        return JsonResponse({"message": "Only the portfolio owner can add achievements."}, status=403)
-
-    form = AchievementForm(request.POST)
-    if form.is_valid():
-        achievement = form.save()
-        return JsonResponse({"message": "Achievement added successfully.", "pk": str(achievement.id)}, status=201)
-
-    return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
 
 @login_required(login_url="/login")
 def create_project(request):
@@ -163,8 +122,7 @@ def delete_project(request, project_id):
 
 @login_required(login_url="/login") 
 def update_project(request, project_id):
-    is_editor = request.user.groups.filter(name="Editor").exists()
-    if not (request.user.is_superuser or is_editor):
+    if not (request.user.is_superuser or is_editor(request.user)):
         raise PermissionDenied
     project = get_object_or_404(Project, pk=project_id)
     form = ProjectForm(request.POST or None, instance=project)
