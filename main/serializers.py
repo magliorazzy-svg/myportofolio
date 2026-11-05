@@ -48,10 +48,17 @@ class ProjectSerializer(StarredSerializer):
 
 
 class AchievementSerializer(StarredSerializer):
+    # "category" carries the stored value ("academic"); this read-only field
+    # carries the label the page shows ("Academic").
+    category_display = serializers.CharField(
+        source="get_category_display", read_only=True,
+    )
+
     class Meta:
         model = Achievement
         fields = [
-            "id", "title", "event", "category", "description", "year",
+            "id", "title", "event", "category", "category_display",
+            "description", "year",
             "star_count", "is_starred", "starred_by_names",
         ]
         read_only_fields = ["id"]
@@ -63,7 +70,13 @@ class AchievementSerializer(StarredSerializer):
         return value
 
     def validate_event(self, value):
-        return strip_tags(value)
+        return strip_tags(value).strip()
 
     def validate_description(self, value):
-        return strip_tags(value)
+        return strip_tags(value).strip()
+
+    def validate_year(self, value):
+        # The form widget limits the year in the browser; the API has to do it too.
+        if not 1900 <= value <= 2100:
+            raise serializers.ValidationError("Year must be between 1900 and 2100.")
+        return value
