@@ -180,7 +180,10 @@ class AchievementAPITest(APITestCase):
             self.assertEqual(self.client.post(self.list_url, self.payload, format="json").status_code, 403)
             self.assertEqual(self.client.patch(self.detail_url, {"title": "X"}, format="json").status_code, 403)
             self.assertEqual(self.client.delete(self.detail_url).status_code, 403)
-        self.assertEqual(Achievement.objects.count(), 1)
+            self.assertEqual(Achievement.objects.count(), 1)
+            self.achievement.refresh_from_db()
+            self.assertEqual(self.achievement.title, "Gold Medalist")
+
 
     def test_editor_can_update_but_not_create_or_delete(self):
         self.client.force_authenticate(user=self.editor)
@@ -193,6 +196,7 @@ class AchievementAPITest(APITestCase):
         self.assertEqual(self.client.post(self.list_url, self.payload, format="json").status_code, 403)
         self.assertEqual(self.client.delete(self.detail_url).status_code, 403)
         self.assertEqual(Achievement.objects.count(), 1)
+        self.assertTrue(Achievement.objects.filter(pk=self.achievement.pk).exists())
 
     def test_owner_can_create_update_and_delete(self):
         self.client.force_authenticate(user=self.owner)
@@ -223,3 +227,64 @@ class AchievementAPITest(APITestCase):
         self.assertFalse(response.data["is_starred"])
         self.assertEqual(response.data["star_count"], 0)
         self.assertEqual(self.client.get(self.star_url).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_session_write_without_csrf_is_rejected(self):
+        client = APIClient(enforce_csrf_checks=True)
+        self.assertTrue(client.login(username="owner", password="test-password"))
+        response = client.post(self.list_url, self.payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(Achievement.objects.count(), 1)
+
+    def test_session_write_with_csrf_succeeds(self):
+        client = APIClient(enforce_csrf_checks=True)
+        client.login(username="owner", password="test-password")
+        client.get(self.list_url, HTTP_ACCEPT="text/html")   # the Browsable API sets the cookie
+        token = client.cookies["csrftoken"].value
+        response = client.post(
+            self.list_url, self.payload, format="json", HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Achievement.objects.count(), 2)
+
+    def test_year_and_required_fields_are_validated(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.post(self.list_url, {**self.payload, "year": 3000}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("year", response.data)
+        response = self.client.post(self.list_url, {"title": "Only a title"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        for field in ("event", "description", "year"):
+            self.assertIn(field, response.data)
+        self.assertEqual(Achievement.objects.count(), 1)
+
+    def test_put_requires_all_fields_but_patch_does_not(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.put(self.detail_url, {"title": "Incomplete"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.client.patch(self.detail_url, {"year": 2020}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.achievement.refresh_from_db()
+        self.assertEqual(self.achievement.year, 2020)
+        self.assertEqual(self.achievement.title, "Gold Medalist")   # untouched
+
+    def test_missing_achievement_returns_404(self):
+        url = reverse("api:achievement-detail", args=[uuid.uuid4()])
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_computed_fields_are_read_only(self):
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.post(self.list_url, {
+            **self.payload, "star_count": 99, "is_starred": True,
+            "starred_by_names": "forged", "starred_by": [self.visitor.id],
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["star_count"], 0)
+        created = Achievement.objects.get(pk=response.data["id"])
+        self.assertEqual(created.starred_by.count(), 0)
+
+    def test_star_uses_the_requesting_account(self):
+        self.client.force_authenticate(user=self.visitor)
+        self.client.post(self.star_url)
+        self.assertEqual(list(self.achievement.starred_by.all()), [self.visitor])
+        self.client.post(self.star_url)
+        self.assertEqual(self.achievement.starred_by.count(), 0)

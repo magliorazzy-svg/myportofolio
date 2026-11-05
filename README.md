@@ -39,6 +39,32 @@ python manage.py runserver
 
 Once the server is running, open http://127.0.0.1:8000/ in a browser.
 
+## API (Tutorial 07 and Assignment 6)
+
+The Projects and Achievements sections have a REST API built with Django REST
+Framework (`djangorestframework`, already listed in `requirements.txt`). Run
+`pip install -r requirements.txt` again after pulling this version.
+
+| Method | Endpoint | Action | Allowed |
+|---|---|---|---|
+| GET | `/api/v1/achievements/` | List, search with `?title=...` | Everyone |
+| POST | `/api/v1/achievements/` | Create | Owner (superuser) |
+| GET | `/api/v1/achievements/<uuid>/` | Retrieve one | Everyone |
+| PUT / PATCH | `/api/v1/achievements/<uuid>/` | Update | Owner and Editor |
+| DELETE | `/api/v1/achievements/<uuid>/` | Delete | Owner |
+| POST | `/api/v1/achievements/<uuid>/star/` | Give or remove a star | Logged-in users |
+
+`/api/v1/projects/` follows the same pattern, but only the owner can write. Opening
+an endpoint in the browser shows the Browsable API. The code lives in
+`main/serializers.py`, `main/permissions.py`, `main/api_views.py`, and
+`main/api_urls.py`.
+
+To run the tests (including the CSRF and role tests):
+
+```bash
+python manage.py test main
+```
+
 ## Answers to the Reflective Questions
 
 ### Assignment 1
@@ -229,6 +255,56 @@ with on the way back in.
    its `clean_title`, `clean_event`, and `clean_description` methods. Escaping at display
    time is the main defense and the server side cleaning is a second layer.
 
+### Assignment 6
+
+1. REST (Representational State Transfer) is an architectural style for web APIs, not a
+   data format. Data is treated as resources with their own URLs (`/api/v1/achievements/`
+   for the collection and `/api/v1/achievements/<uuid>/` for one item), the HTTP method
+   states the action (GET reads, POST creates, PUT/PATCH updates, DELETE removes), and the
+   client and server exchange representations of that data, ideally statelessly. Returning
+   JSON alone is not enough: my Assignment 5 endpoints returned JSON, but the actions were
+   written into the URLs (`/achievements/add-ajax/`, `/projects/<uuid>/delete/`) and almost
+   everything used POST, so they were not resource oriented. (My API still uses
+   `SessionAuthentication`, so it is not fully stateless either.) PUT replaces the whole
+   representation, so every required field must be sent: in my tests a PUT with only a
+   `title` returns 400. PATCH changes only the fields that are sent. I would use PUT to
+   replace an achievement with a complete corrected record, and PATCH to fix just the year,
+   for example `{"year": 2020}`, which leaves the title untouched.
+
+2. A serializer converts model instances into plain Python data that the renderer turns
+   into JSON (serialization), and it validates incoming data and turns it into something
+   that can be saved (deserialization). `AchievementSerializer` states the exposed
+   `fields`, the computed read-only fields (`star_count`, `is_starred`,
+   `starred_by_names`, `category_display`), and the validation rules (`strip_tags` and the
+   year range) in one place, and the same class is reused by list, detail, create,
+   update, and star. In Tutorial 05 I assembled a dictionary by hand in a loop in the
+   view, and the validation lived in a separate form, so the output shape and the rules
+   could drift apart. With the serializer, invalid input automatically becomes a 400
+   response with per-field errors, read-only fields cannot be forged (a test posts a fake
+   `star_count` and it is ignored), and the response shape stays consistent.
+
+3. Authentication answers "who are you?": `SessionAuthentication` reads the Django session
+   cookie from my existing login and sets `request.user`. Authorization answers "what
+   may you do?": a permission class such as `IsPortfolioOwnerOrEditorOrReadOnly` decides
+   whether that user may continue (visitors and regular users can only read, an Editor
+   can PUT/PATCH, and only the owner can POST or DELETE). The check must be on the server
+   because anyone can send requests directly with `fetch`, `curl`, or the Browsable API
+   without ever seeing my template; hiding a button only improves the interface. I
+   checked this in the browser: an Editor has no Add or Delete button, and a direct
+   POST or DELETE from the console still returns 403 and leaves the data unchanged, which
+   my tests also verify in the database.
+
+4. With `SessionAuthentication` the browser attaches the session cookie automatically to
+   every request to my site, including requests triggered by another website. Without a
+   CSRF token, a malicious page could make a logged-in owner's browser send a DELETE or
+   POST. The token in the `X-CSRFToken` header cannot be read by other origins, so a
+   request that has the cookie but no valid token is rejected with 403. A test that uses
+   `force_authenticate` is not enough because it attaches the user directly to the
+   request and skips both the login and the session authentication step where DRF
+   enforces CSRF. So I wrote two tests with `APIClient(enforce_csrf_checks=True)` and a
+   real `.login()`: a POST without the token returns 403 and saves nothing, and a POST
+   with the token from the Browsable API's cookie returns 201.
+
 ## AI Usage Disclosure
 
 I used two tools while working on this assignment: Gemini and Claude Code.
@@ -301,3 +377,22 @@ plain text by `escapeHtml`). Limitations I noticed: the tutorial CSS used variab
 (`--paper`, `--line`, `--accent`) that do not exist in my Stranger Things theme, so I
 had to map them to my own variables, and a few of Claude Code's own test scripts gave
 false alarms that I only trusted after checking the real output.
+
+For Tutorial 07 and Assignment 6, Tutorial 07 for me: it installed DRF, wrote `serializers.py`, `permissions.py`,`api_views.py`, `api_urls.py`, `tests_api.py`, and the new script in `projects.html`, and I committed the result. For Assignment 6 I asked it to guide me step by step. It explained the plan and the request flow, and it changed the backend before I asked it to stop: the `is_editor` helper, `category_display`, `validate_year`, and removing the old
+achievements endpoints in `views.py` and `urls.py`. After that I added the template and
+JavaScript parts myself, following the code and explanations it gave step by step: the
+add modal change, `achievement_edit_modal.html`, the markup in `achievements.html`, the
+three parts of its script (helpers, rendering and fetching, add/edit/delete/star/search),
+and the extra tests in `tests_api.py`. I also asked it to run the app in a browser as
+each role (visitor, regular user, Editor, owner) and to check the grading rubric. I wrote
+the reflective answers above based on its drafts and the code.
+
+Limitations and fixes I noticed: the Tutorial 07 test code assumes an empty database, but
+my data migrations seed rows, so the tests failed until the setup deletes the seeded
+rows; `Group.objects.create(name="Editor")` collided with the Editor group created by my
+migration, so it became `get_or_create`; two older tests still expected achievements to
+be server rendered after Assignment 5 and had to be updated to the AJAX/API contract;
+Claude Code gave a wrong file path for one step, and its first browser test suggested a
+toast bug that turned out to be my form being reset and HTML5 validation blocking the
+submit. I confirmed the final behaviour with `python manage.py test main` (36 tests) and
+by trying each role in the browser.
