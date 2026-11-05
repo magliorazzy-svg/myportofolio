@@ -48,208 +48,244 @@
             {% include "components/achievement_form_modal.html" %}
         {% endif %}
 
-    <script>
-    // Configuration
-    const BASE_ACHIEVEMENTS_ENDPOINT = "{% url 'main:get_achievements_json' %}";
-    const CREATE_ACHIEVEMENT_ENDPOINT = "{% url 'main:create_achievement_ajax' %}";
-    const IS_AUTHENTICATED = "{{ user.is_authenticated|yesno:'true,false' }}" === "true";
-    let achievementsAbortController;
+        {% if can_edit %}
+            {% include "components/achievement_edit_modal.html" with form=edit_form %}
+        {% endif %}
 
-    // DOM elements
-    const loadingState = document.getElementById('loading');
-    const errorState = document.getElementById('error');
-    const emptyState = document.getElementById('empty');
-    const gridContainer = document.getElementById('grid');
-    const searchForm = document.getElementById('achievement-search-form');
-    const searchInput = document.getElementById('search-input');
-    // Only exists for superusers (the modal is not rendered for anyone else)
-    const achievementForm = document.getElementById('achievement-form');
-    const SEARCH_DEBOUNCE_DELAY = 300;
-    let searchDebounceTimer;
+        {% csrf_token %}
 
-    // Show/hide page sections
-    function displayPageSection({ showLoading = false, showError = false, showEmpty = false, showGrid = false }) {
-        loadingState.classList.toggle('hide', !showLoading);
-        errorState.classList.toggle('hide', !showError);
-        emptyState.classList.toggle('hide', !showEmpty);
-        gridContainer.classList.toggle('hide', !showGrid);
-    }
+<script>
+const BASE_ACHIEVEMENTS_ENDPOINT = "{% url 'api:achievement-list' %}";
+const DETAIL_ACHIEVEMENT_ENDPOINT = "{% url 'api:achievement-detail' '00000000-0000-0000-0000-000000000000' %}";
+const STAR_ACHIEVEMENT_ENDPOINT = "{% url 'api:achievement-star' '00000000-0000-0000-0000-000000000000' %}";
+const IS_AUTHENTICATED = "{{ user.is_authenticated|yesno:'true,false' }}" === "true";
+const IS_OWNER = "{{ is_owner|yesno:'true,false' }}" === "true";
+const CAN_EDIT = "{{ can_edit|yesno:'true,false' }}" === "true";
 
-    // Convert special HTML characters into entities so they display as text (XSS protection)
-    function escapeHtml(value) {
-        return String(value ?? '')
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#39;');
-    }
+const loadingState = document.getElementById('loading');
+const errorState = document.getElementById('error');
+const emptyState = document.getElementById('empty');
+const gridContainer = document.getElementById('grid');
+const searchForm = document.getElementById('achievement-search-form');
+const searchInput = document.getElementById('search-input');
+// These two only exist in the HTML for the roles that may use them (otherwise null)
+const achievementForm = document.getElementById('achievement-form');
+const editForm = document.getElementById('achievement-edit-form');
+const SEARCH_DEBOUNCE_DELAY = 300;
+const achievementsById = new Map();   // id -> achievement, used to prefill the edit modal
+let achievementsAbortController;
+let searchDebounceTimer;
+let editingId = null;
 
-    function closeAchievementModal() {
-        document.getElementById("add-achievement-modal").hidePopover();
-    }
+function getCookie(name) {
+    const prefix = `${name}=`;
+    const cookie = document.cookie.split(';').map(value => value.trim())
+        .find(value => value.startsWith(prefix));
+    return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : null;
+}
 
-    // Build an achievement card element from one JSON item
-    function buildAchievementCardElement(item) {
-        const achievement = item.fields;
-        const achievementId = item.pk;
+function escapeHtml(value) {
+    return String(value ?? '').replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+}
 
-        const articleElement = document.createElement('article');
-        articleElement.className = 'experience-card';
+function achievementEndpoint(pattern, id) {
+    return pattern.replace('00000000-0000-0000-0000-000000000000', id);
+}
 
-        // A dummy UUID used as a placeholder to be replaced with the real ID from the JSON data
-        const starUrl = "{% url 'main:toggle_achievement_star' '00000000-0000-0000-0000-000000000000' %}"
-            .replace('00000000-0000-0000-0000-000000000000', achievementId);
+function displayPageSection({ showLoading = false, showError = false,
+    showEmpty = false, showGrid = false }) {
+    loadingState.classList.toggle('hide', !showLoading);
+    errorState.classList.toggle('hide', !showError);
+    emptyState.classList.toggle('hide', !showEmpty);
+    gridContainer.classList.toggle('hide', !showGrid);
+}
 
-        const isStarredClass = achievement.is_starred ? " is-starred" : "";
-        const starText = achievement.is_starred ? "Unstar" : "Star";
-        const starTitle = achievement.star_count > 0
-            ? `Starred by ${escapeHtml(achievement.starred_by_names)}`
-            : "Be the first to star";
+// Serializer errors look like {"title": ["..."]}; permission errors like {"detail": "..."}
+function apiErrorMessage(data, status) {
+    const messages = Object.values(data).flat().filter(value => typeof value === 'string');
+    return messages.join(' ') || `Request failed (HTTP ${status}).`;
+}
 
-        // Logged-in users get a working star button; visitors only see the count.
-        const starHtml = IS_AUTHENTICATED
-            ? `<form method="post" action="${starUrl}" class="star-form">
-                    {% csrf_token %}
-                    <button type="submit"
-                            class="button button-star${isStarredClass}"
-                            title="${starTitle}">
-                        <span aria-hidden="true">★</span>
-                        ${starText}
-                        <span class="star-count">${escapeHtml(achievement.star_count)}</span>
-                    </button>
-                </form>`
-            : `<span class="star-count" title="${starTitle}">★ ${escapeHtml(achievement.star_count)}</span>`;
-
-        // Every value coming from the JSON is escaped before it goes into innerHTML
-        const completeCardHtml = `
-            <h3>${escapeHtml(achievement.title)}</h3>
-            <span class="experience-category">${escapeHtml(achievement.event)} &middot; ${escapeHtml(achievement.category)}</span>
-            <p class="experience-description">${escapeHtml(achievement.description)}</p>
-            <p class="achievement-year">${escapeHtml(achievement.year)}</p>
-            <div class="project-card-actions">
-                <div class="project-actions">
-                    ${starHtml}
-                </div>
-            </div>
-        `;
-
-        articleElement.innerHTML = completeCardHtml;
-        return articleElement;
-    }
-
-    // Fetch achievement data from the JSON endpoint
-    async function fetchAchievements(searchQuery = "") {
-        // Cancel the previous request so stale results never overwrite newer ones
-        if (achievementsAbortController) achievementsAbortController.abort();
-        achievementsAbortController = new AbortController();
-
-        try {
-            displayPageSection({ showLoading: true });
-
-            const url = searchQuery
-                ? `${BASE_ACHIEVEMENTS_ENDPOINT}?title=${encodeURIComponent(searchQuery)}`
-                : BASE_ACHIEVEMENTS_ENDPOINT;
-
-            const response = await fetch(url, {
-                headers: { 'Accept': 'application/json' },
-                signal: achievementsAbortController.signal,
-            });
-
-            if (!response.ok) throw new Error('Failed to fetch data');
-
-            const achievementData = await response.json();
-
-            if (achievementData.length === 0) {
-                displayPageSection({ showEmpty: true });
-            } else {
-                gridContainer.innerHTML = '';
-                achievementData.forEach(item => {
-                    gridContainer.appendChild(buildAchievementCardElement(item));
-                });
-                displayPageSection({ showGrid: true });
-            }
-        } catch (error) {
-            if (error.name === 'AbortError') return;
-            console.error('Error loading achievements:', error);
-            displayPageSection({ showError: true });
-        }
-    }
-
-    // Read a cookie value, used to get the CSRF token
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-
-    // Send the modal form to the server with fetch (no page reload)
-    async function addAchievement(event) {
-        event.preventDefault();
-
-        const submitButton = achievementForm.querySelector('button[type="submit"]');
-        submitButton.disabled = true;
-
-        try {
-            const response = await fetch(CREATE_ACHIEVEMENT_ENDPOINT, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': getCookie('csrftoken') },
-                body: new FormData(achievementForm),
-            });
-            const result = await response.json().catch(() => ({}));
-
-            if (response.ok) {
-                achievementForm.reset();
-                closeAchievementModal();
-                showToast('Success', 'New achievement added successfully!', 'success');
-                fetchAchievements(searchInput.value.trim());
-            } else {
-                const errorMessages = result.errors
-                    ? Object.values(result.errors).flat().map(error => error.message)
-                    : [result.message || `Something went wrong (status ${response.status}).`];
-                showToast('Failed to add achievement', errorMessages.join(' '), 'error');
-            }
-        } catch (error) {
-            console.error('Error adding achievement:', error);
-            showToast('Failed to add achievement', 'Could not reach the server. Please try again.', 'error');
-        } finally {
-            submitButton.disabled = false;
-        }
-    }
-
-    if (achievementForm) {
-        achievementForm.addEventListener('submit', addAchievement);
-    }
-
-    // Search with debouncing: only fire after the user stops typing
-    function searchAchievements() {
-        fetchAchievements(searchInput.value.trim());
-    }
-
-    searchInput.addEventListener("input", function() {
-        clearTimeout(searchDebounceTimer);
-
-        searchDebounceTimer = setTimeout(function() {
-            searchAchievements();
-        }, SEARCH_DEBOUNCE_DELAY);
+// One helper for every request that changes data (POST / PATCH / DELETE)
+async function writeAchievement(url, method, payload) {
+    const response = await fetch(url, {
+        method,
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken'),
+        },
+        body: payload === undefined ? undefined : JSON.stringify(payload),
     });
+    if (response.status === 204) return null;
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(apiErrorMessage(data, response.status));
+    return data;
+    
+}
 
-    searchForm.addEventListener("submit", function(event) {
-        event.preventDefault();
-        clearTimeout(searchDebounceTimer);
-        searchAchievements();
+// Build one card from one object of the DRF response (no more item.fields / item.pk)
+function buildAchievementCardElement(achievement) {
+    const article = document.createElement('article');
+    article.className = 'experience-card';
+
+    const starTitle = achievement.star_count > 0
+        ? `Starred by ${escapeHtml(achievement.starred_by_names)}`
+        : 'Be the first to star';
+    // Logged-in users get a star button; visitors only see the count
+    const star = IS_AUTHENTICATED
+        ? `<button type="button"
+                class="button button-star${achievement.is_starred ? ' is-starred' : ''}"
+                data-action="star" data-id="${escapeHtml(achievement.id)}"
+                title="${starTitle}">
+                <span aria-hidden="true">★</span>
+                ${achievement.is_starred ? 'Unstar' : 'Star'}
+                <span class="star-count">${escapeHtml(achievement.star_count)}</span>
+            </button>`
+        : `<span class="star-count" title="${starTitle}">★ ${escapeHtml(achievement.star_count)}</span>`;
+    // Owner and Editor may edit; only the owner may delete
+    const edit = CAN_EDIT
+        ? `<button type="button" class="button" data-action="edit"
+                data-id="${escapeHtml(achievement.id)}">Edit</button>` : '';
+    const remove = IS_OWNER
+        ? `<button type="button" class="button button-danger" data-action="delete"
+                data-id="${escapeHtml(achievement.id)}">Delete</button>` : '';
+
+    // Every value that came from the API is escaped before it goes into innerHTML
+    article.innerHTML = `<h3>${escapeHtml(achievement.title)}</h3>
+        <span class="experience-category">${escapeHtml(achievement.event)} &middot; ${escapeHtml(achievement.category_display)}</span>
+        <p class="experience-description">${escapeHtml(achievement.description)}</p>
+        <p class="achievement-year">${escapeHtml(achievement.year)}</p>
+        <div class="project-card-actions"><div class="project-actions">
+        ${star}${edit}${remove}</div></div>`;
+    return article;
+}
+
+async function fetchAchievements(searchQuery = '') {
+    // Cancel the previous request so a slow old response never overwrites a newer one
+    if (achievementsAbortController) achievementsAbortController.abort();
+    achievementsAbortController = new AbortController();
+    try {
+        displayPageSection({ showLoading: true });
+        const url = new URL(BASE_ACHIEVEMENTS_ENDPOINT, window.location.origin);
+        if (searchQuery) url.searchParams.set('title', searchQuery);
+        const response = await fetch(url, {
+            headers: { Accept: 'application/json' },
+            signal: achievementsAbortController.signal,
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const achievements = await response.json();
+        achievementsById.clear();
+        achievements.forEach(item => achievementsById.set(item.id, item));
+        gridContainer.replaceChildren(...achievements.map(buildAchievementCardElement));
+        displayPageSection({
+            showGrid: achievements.length > 0,
+            showEmpty: achievements.length === 0,
+        });
+    } catch (error) {
+        if (error.name === 'AbortError') return;
+        console.error('Error loading achievements:', error);
+        displayPageSection({ showError: true });
+    }
+}
+
+// Read the five fields we send; the form's CSRF token and buttons are not model data
+function formPayload(form) {
+    const fields = new FormData(form);
+    return Object.fromEntries(
+        ['title', 'event', 'category', 'description', 'year']
+            .map(name => [name, fields.get(name)])
+    );
+}
+
+// ---- Add (the form only exists for the owner) ----
+async function addAchievement(event) {
+    event.preventDefault();
+    const button = achievementForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+        await writeAchievement(BASE_ACHIEVEMENTS_ENDPOINT, 'POST', formPayload(achievementForm));
+        achievementForm.reset();
+        document.getElementById('add-achievement-modal').hidePopover();
+        showToast('Success', 'New achievement added successfully!', 'success');
+        await fetchAchievements(searchInput.value.trim());
+    } catch (error) {
+        showToast('Failed to add achievement', error.message, 'error');
+    } finally {
+        button.disabled = false;
+    }
+}
+if (achievementForm) achievementForm.addEventListener('submit', addAchievement);
+
+// ---- Edit (the modal only exists for the owner and Editors) ----
+function openEditModal(id) {
+    const achievement = achievementsById.get(id);
+    if (!achievement) return;
+    editingId = id;
+    ['title', 'event', 'category', 'description', 'year'].forEach(name => {
+        editForm.elements[name].value = achievement[name];
     });
+    document.getElementById('edit-achievement-modal').showPopover();
+}
 
-    // Start the application
+async function saveAchievement(event) {
+    event.preventDefault();
+    const button = editForm.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+        await writeAchievement(
+            achievementEndpoint(DETAIL_ACHIEVEMENT_ENDPOINT, editingId),
+            'PATCH', formPayload(editForm),
+        );
+        document.getElementById('edit-achievement-modal').hidePopover();
+        showToast('Success', 'Achievement updated.', 'success');
+        await fetchAchievements(searchInput.value.trim());
+    } catch (error) {
+        showToast('Failed to update achievement', error.message, 'error');
+    } finally {
+        button.disabled = false;
+    }
+}
+if (editForm) editForm.addEventListener('submit', saveAchievement);
+
+// ---- Star / Edit / Delete: one listener on the grid (event delegation) ----
+gridContainer.addEventListener('click', async function(event) {
+    const button = event.target.closest('button[data-action]');
+    if (!button || button.disabled) return;
+    const { action, id } = button.dataset;
+
+    if (action === 'edit') return openEditModal(id);
+    if (action === 'delete' && !window.confirm('Are you sure you want to delete this achievement?')) return;
+
+    button.disabled = true;
+    try {
+        const pattern = action === 'star' ? STAR_ACHIEVEMENT_ENDPOINT : DETAIL_ACHIEVEMENT_ENDPOINT;
+        await writeAchievement(achievementEndpoint(pattern, id),
+            action === 'star' ? 'POST' : 'DELETE');
+        showToast('Success', action === 'star' ? 'Star updated.' : 'Achievement deleted.', 'success');
+        await fetchAchievements(searchInput.value.trim());
+    } catch (error) {
+        showToast('Request failed', error.message, 'error');
+    } finally {
+        button.disabled = false;
+    }
+});
+
+// ---- Debounced search (300 ms) ----
+searchInput.addEventListener('input', function() {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(
+        () => fetchAchievements(searchInput.value.trim()), SEARCH_DEBOUNCE_DELAY);
+});
+searchForm.addEventListener('submit', function(event) {
+    event.preventDefault();
+    clearTimeout(searchDebounceTimer);
     fetchAchievements(searchInput.value.trim());
-    </script>
+});
+
+// Start the application
+fetchAchievements(searchInput.value.trim());
+</script>
 {% endblock content %}
